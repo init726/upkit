@@ -1,45 +1,101 @@
-# Upkit — v1.0 Frontend MVP
+# Upkit
 
-**Upkit**은 조립 PC 초보자가 케이스 내부를 촬영하면 장착된 부품의 **종류와 위치**를 확인하고, 정확한 모델 확인에 필요한 추가 촬영을 안내받는 모바일 우선 웹 앱이다.
+사진 한 장으로 PC 내부 부품의 종류와 위치를 확인하는 인터랙티브 가이드입니다.
 
-> See it. Swap it. Upgrade it.
+PC 케이스 내부 사진을 업로드하면 그래픽카드, 메모리, CPU 쿨러 등의 인식 결과를 사진 위 윤곽선으로 보여주고, 부품별 판단 근거와 추가로 촬영해야 할 위치를 안내합니다. 조립 PC에 익숙하지 않은 사용자도 자신의 PC 구성을 안전하고 쉽게 파악할 수 있도록 만드는 것이 목표입니다.
 
-## v1.0 목표
+> 현재 버전은 프론트엔드 UX를 검증하기 위한 MVP입니다. 분석 결과는 실제 AI 모델이 아닌 고정된 데모 데이터로 표시됩니다.
 
-- 카메라 촬영 또는 이미지 업로드
-- 촬영 전 안전 확인
-- Vision 분석 대기 UI
-- 사진 위 부품 bounding box 표시
-- 탐지 부품 목록, 신뢰도, 관찰 근거 표시
-- 정확한 모델을 확정할 수 없으면 라벨 확대 촬영 요청
-- mock 분석과 실제 API 구현을 동일 인터페이스로 교체 가능
+## 주요 기능
 
-## v1.0 비목표
+- 촬영 전 PC 종료와 전원 분리를 확인하는 안전 절차
+- 모바일 카메라 촬영 및 로컬 이미지 업로드
+- 분석 진행 상태와 스캔 애니메이션
+- 이미지 비율과 여백을 반영한 정확한 오버레이 정렬
+- 부품 형태를 표현할 수 있는 SVG 다각형 윤곽선
+- 전체 윤곽 보기와 선택 부품 집중 보기
+- 사진 윤곽선, 부품 목록, 분석 근거 카드 간 연동
+- 인식 신뢰도와 추가 사진 촬영 안내
+- 데스크톱과 모바일에 대응하는 반응형 UI
+- 사용자 모션 감소 설정 지원
 
-- 사진 한 장으로 정확한 CPU/GPU/RAM 모델 확정
-- 고장 진단, 전기적 정상 여부, 완전 체결 여부 판정
-- 부품 구매 추천 및 가격 비교
-- 실시간 AR 또는 영상 추적
-- PSU 내부 분해 안내
+## 현재 분석 범위
 
-## 부품 판단 원칙
+Upkit에서 사용하는 부품 카테고리는 다음과 같습니다.
 
-1. Vision은 외형과 장착 위치로 `gpu`, `memory`, `cpu_cooler`, `motherboard`, `storage`, `power_supply`, `case_fan`을 대분류한다.
-2. 정확한 모델은 외형만으로 확정하지 않는다.
-3. 라벨·각인을 추가 촬영하고 OCR 문자열로 제품 DB 후보를 검색한다.
-4. 최종 제품은 사용자가 확인한다.
-5. 신뢰도가 낮거나 가려진 대상은 `unknown` 또는 `needsConfirmation`으로 반환한다.
+| 카테고리 | 값 |
+| --- | --- |
+| 메인보드 | `motherboard` |
+| 그래픽카드 | `gpu` |
+| 메모리 | `memory` |
+| 저장장치 | `storage` |
+| CPU 쿨러 | `cpu_cooler` |
+| 파워서플라이 | `power_supply` |
+| 케이스 팬 | `case_fan` |
+| 확인 필요 | `unknown` |
 
-## 분석 파이프라인
+사진만으로 정확한 제품 모델, 전기적 정상 여부, 내부 손상 또는 완전 체결 여부를 확정하지 않습니다. 모델 식별이 필요한 경우 제품 라벨이나 각인이 보이는 추가 사진을 요청하는 방식으로 설계되어 있습니다.
+
+## 사용 흐름
 
 ```text
-촬영 → 품질 검사 → 부품 탐지 → 위치 좌표 반환
-    → 라벨 확대 촬영 → OCR → DB 후보 검색 → 사용자 확정
+안전 확인
+  → PC 내부 사진 촬영 또는 선택
+  → 이미지 품질 및 부품 분석
+  → 사진 위 부품 윤곽선 표시
+  → 부품별 판단 근거 확인
+  → 필요하면 라벨 확대 사진 추가 촬영
 ```
 
-## API 계약
+## 실행 방법
 
-프론트는 `VisionAnalysisService`만 의존한다. 현재 `mockVisionService`를 사용하며 실제 API는 같은 인터페이스로 구현한다.
+### 요구 사항
+
+- Node.js 18 이상
+- npm
+
+### 개발 서버
+
+```bash
+npm install
+npm run dev
+```
+
+Vite가 출력하는 로컬 주소를 브라우저에서 열면 됩니다. 모바일 카메라 동작을 확인하려면 HTTPS 환경 또는 지원되는 로컬 개발 환경이 필요할 수 있습니다.
+
+### 프로덕션 빌드
+
+```bash
+npm run build
+npm run preview
+```
+
+## 기술 구성
+
+- React 19
+- TypeScript
+- Vite
+- Lucide React
+- CSS 기반 반응형 레이아웃 및 애니메이션
+- SVG 기반 부품 윤곽선 오버레이
+
+별도의 상태 관리 라이브러리나 UI 프레임워크 없이 가볍게 구성되어 있습니다.
+
+## 프로젝트 구조
+
+```text
+src/
+├── App.tsx              # 화면 흐름과 주요 인터랙션
+├── main.tsx             # React 진입점
+├── styles.css           # 레이아웃, 반응형 스타일, 애니메이션
+├── types.ts             # 분석 결과와 부품 타입
+└── services/
+    └── vision.ts        # 현재 데모 분석 서비스
+```
+
+## 분석 데이터 형식
+
+프론트엔드는 `VisionAnalysisService` 인터페이스만 사용합니다. 실제 분석 API도 같은 계약을 구현하면 현재 데모 서비스를 교체할 수 있습니다.
 
 ```ts
 interface VisionAnalysisService {
@@ -47,76 +103,66 @@ interface VisionAnalysisService {
 }
 ```
 
-Bounding box는 화면 크기와 독립적인 0~1 정규화 좌표다.
+탐지 위치는 원본 이미지 너비와 높이를 기준으로 `0~1` 범위에 정규화합니다. `outline`은 부품 외곽선을 이루는 점 목록이며, 값이 없을 때는 `boundingBox`를 대체 표시로 사용할 수 있습니다.
 
 ```ts
 interface Detection {
   id: string;
   category: ComponentCategory;
   confidence: number;
-  boundingBox: { x: number; y: number; width: number; height: number };
+  boundingBox: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  outline?: Array<{ x: number; y: number }>;
   visibleText: string[];
   observations: string[];
   manufacturerCandidates: string[];
-  productCandidates: ProductCandidate[];
+  productCandidates: Array<{
+    productId: string;
+    score: number;
+    evidence: string[];
+  }>;
   needsConfirmation: boolean;
   requestedPhoto?: string;
 }
 ```
 
-## 제품 DB 정책
+## 실제 Vision API 연결
 
-- 초기 DB는 제조사 공식 사양과 공식 매뉴얼로 검수한 소량의 제품만 저장한다.
-- 사용자 선택은 개인 PC 구성에만 저장하고 공용 DB에 자동 반영하지 않는다.
-- 사용자 제출 데이터는 관리자 검수 후 공용 DB 후보가 된다.
-- 쇼핑몰 상품명과 가격은 v1.0에서 제외한다.
-- 권장 초기 범위: 메인보드 10, GPU 20, RAM 15, SSD 15, 쿨러 10, PSU 10개.
+현재 [`src/services/vision.ts`](src/services/vision.ts)의 `mockVisionService`는 업로드된 사진을 분석하지 않고 동일한 샘플 결과를 반환합니다. 실제 정확도를 확보하려면 백엔드 분석 파이프라인이 필요합니다.
 
-### 제품 레코드
+권장 흐름은 다음과 같습니다.
 
-```ts
-interface Product {
-  id: string;
-  category: ComponentCategory;
-  manufacturer: string;
-  modelName: string;
-  aliases: string[];
-  specifications: Record<string, string | number | boolean>;
-  visualFeatures: string[];
-  identifiers: { modelNumbers: string[]; barcodeValues?: string[] };
-  sources: { type: "official-product-page" | "official-manual"; url: string; verifiedAt: string }[];
-}
-```
+1. 프론트엔드에서 이미지를 백엔드로 업로드합니다.
+2. 백엔드에서 이미지 품질을 검사합니다.
+3. 객체 탐지 또는 인스턴스 세그멘테이션 모델로 부품을 분류합니다.
+4. 모델의 마스크를 정규화된 `outline` 좌표로 변환합니다.
+5. 필요한 영역에 OCR을 적용해 라벨과 모델 번호 후보를 찾습니다.
+6. 반환값을 `AnalysisResult` 형식으로 검증한 후 프론트엔드에 전달합니다.
 
-## 안전 규칙
+API 키와 모델 접근 정보는 브라우저 코드에 포함하지 않고 백엔드 환경 변수로 관리해야 합니다.
 
-- 촬영 전에 PC 종료와 전원 케이블 분리를 확인한다.
-- PSU 내부 분해를 안내하지 않는다.
-- 사진으로 전기적 정상, 내부 손상, 완전 체결을 확정하지 않는다.
-- 낮은 신뢰도 결과에는 추가 촬영 또는 사용자 확인을 요구한다.
+## 안전 원칙
 
-## 실행
+- 촬영 전 컴퓨터를 완전히 종료하고 전원 케이블을 분리합니다.
+- 파워서플라이 본체 내부를 열도록 안내하지 않습니다.
+- 사진만으로 전기적 안전이나 부품의 정상 작동을 보장하지 않습니다.
+- 신뢰도가 낮거나 다른 부품에 가려진 결과는 사용자 확인을 요청합니다.
+- 정확한 제품 모델은 라벨, OCR 결과 및 사용자의 최종 확인을 거칩니다.
 
-```bash
-npm install
-npm run dev
-```
+## 로드맵
 
-프로덕션 확인:
+- 실제 부품 탐지 및 세그멘테이션 API
+- 촬영 품질 검사와 재촬영 가이드
+- 라벨 확대 촬영 및 OCR
+- 공식 제품 데이터베이스와 모델 후보 검색
+- 사용자별 PC 구성 저장
+- 부품 호환성 및 업그레이드 가이드
+- 모바일 앱 또는 설치형 웹 앱 전환
 
-```bash
-npm run build
-npm run preview
-```
+## 라이선스
 
-## 실제 Vision API 연결 위치
-
-`src/services/vision.ts`의 `mockVisionService`와 동일한 `VisionAnalysisService` 구현을 추가한다. API 키는 브라우저에 넣지 말고 백엔드 환경 변수에 저장한다. 백엔드는 업로드 이미지를 분석한 뒤 반드시 `AnalysisResult` 형식으로 검증해 반환한다.
-
-## 다음 버전
-
-1. 라벨 확대 촬영 및 OCR 후보 검색
-2. 사용자 PC 구성 저장
-3. 공식 제품 DB와 호환성 규칙
-4. 장착 전후 비교
-5. 전용 객체 탐지 모델
+현재 별도의 라이선스가 지정되어 있지 않습니다.
