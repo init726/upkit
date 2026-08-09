@@ -1,0 +1,8 @@
+import type {AnalysisResult,VisionAnalysisService} from '../types';
+const wait=(ms:number)=>new Promise(r=>setTimeout(r,ms));
+const mockResult:AnalysisResult={imageId:'mock-analysis',imageQuality:{usable:true,issues:[]},warnings:['사진만으로 정확한 모델과 완전 체결 여부는 확정할 수 없습니다.'],detections:[
+{id:'gpu-1',category:'gpu',confidence:.96,boundingBox:{x:.12,y:.47,width:.72,height:.23},outline:[{x:.13,y:.49},{x:.79,y:.49},{x:.84,y:.53},{x:.83,y:.66},{x:.76,y:.69},{x:.18,y:.69},{x:.12,y:.64},{x:.12,y:.53}],visibleText:[],observations:['PCIe 주 슬롯 높이에 수평으로 장착된 확장 카드','냉각부와 보조전원 케이블 형태가 확인됨'],manufacturerCandidates:[],productCandidates:[],needsConfirmation:true,requestedPhoto:'그래픽카드 뒷면 또는 측면의 제품 라벨을 확대 촬영해주세요.'},
+{id:'memory-1',category:'memory',confidence:.91,boundingBox:{x:.63,y:.14,width:.15,height:.32},outline:[{x:.65,y:.15},{x:.69,y:.14},{x:.71,y:.16},{x:.73,y:.15},{x:.76,y:.17},{x:.77,y:.43},{x:.74,y:.46},{x:.66,y:.45},{x:.64,y:.41}],visibleText:[],observations:['CPU 소켓 옆 DIMM 슬롯 방향과 일치','세로로 나란한 메모리 모듈 형태가 보임'],manufacturerCandidates:[],productCandidates:[],needsConfirmation:true,requestedPhoto:'메모리 모듈 측면 라벨이 보이도록 확대 촬영해주세요.'},
+{id:'cooler-1',category:'cpu_cooler',confidence:.89,boundingBox:{x:.32,y:.13,width:.28,height:.3},outline:[{x:.35,y:.14},{x:.54,y:.14},{x:.59,y:.2},{x:.59,y:.38},{x:.54,y:.43},{x:.37,y:.42},{x:.32,y:.36},{x:.32,y:.2}],visibleText:[],observations:['CPU 소켓 중심부에 위치','방열판 또는 팬 어셈블리의 외곽이 확인됨'],manufacturerCandidates:[],productCandidates:[],needsConfirmation:false}
+]};
+export const mockVisionService:VisionAnalysisService={async analyze(){await wait(1900);return mockResult;}};
