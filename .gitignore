@@ -5,3 +5,19 @@ dist/
 .env
 .env.*
 !.env.example
+
+# Python
+.venv/
+__pycache__/
+
+# 학습 데이터 이미지: 용량이 크고 출처별 라이선스가 달라 저장소에 넣지 않는다
+training/data/raw/
+training/data/review/
+training/data/contact-sheets/
+training/data/dataset-smoke/
+training/data/legacy/
+
+# 학습 결과물과 가중치 (YOLO smoke 가중치는 AGPL-3.0)
+runs/
+*.pt
+*.onnx

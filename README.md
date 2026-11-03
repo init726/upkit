@@ -1,189 +1,99 @@
 # Upkit
 
-사진 한 장으로 PC 내부 부품의 종류와 위치를 확인하는 인터랙티브 가이드입니다.
+> See it. Swap it. Upgrade it.
 
-PC 케이스 내부 사진을 업로드하면 그래픽카드, 메모리, CPU 쿨러 등의 인식 결과를 사진 위 윤곽선으로 보여주고, 부품별 판단 근거와 추가로 촬영해야 할 위치를 안내합니다. 조립 PC에 익숙하지 않은 사용자도 자신의 PC 구성을 안전하고 쉽게 파악할 수 있도록 만드는 것이 목표입니다.
+PC 케이스 내부 사진 한 장으로 부품의 종류와 위치를 윤곽선으로 보여주고, 라벨을 찍으면 정확한 모델을 확인해 주는 모바일 우선 웹앱입니다.
 
-> 현재 버전은 프론트엔드 UX를 검증하기 위한 MVP입니다. 분석 결과는 실제 AI 모델이 아닌 고정된 데모 데이터로 표시됩니다.
-
-## 주요 기능
-
-- 촬영 전 PC 종료와 전원 분리를 확인하는 안전 절차
-- 모바일 카메라 촬영 및 로컬 이미지 업로드
-- 분석 진행 상태와 스캔 애니메이션
-- 이미지 비율과 여백을 반영한 정확한 오버레이 정렬
-- 부품 형태를 표현할 수 있는 SVG 다각형 윤곽선
-- 전체 윤곽 보기와 선택 부품 집중 보기
-- 사진 윤곽선, 부품 목록, 분석 근거 카드 간 연동
-- 인식 신뢰도와 추가 사진 촬영 안내
-- 데스크톱과 모바일에 대응하는 반응형 UI
-- 사용자 모션 감소 설정 지원
-
-## 현재 분석 범위
-
-Upkit에서 사용하는 부품 카테고리는 다음과 같습니다.
-
-| 카테고리 | 값 |
-| --- | --- |
-| 메인보드 | `motherboard` |
-| 그래픽카드 | `gpu` |
-| 메모리 | `memory` |
-| 저장장치 | `storage` |
-| CPU 쿨러 | `cpu_cooler` |
-| 파워서플라이 | `power_supply` |
-| 케이스 팬 | `case_fan` |
-| 확인 필요 | `unknown` |
-
-사진만으로 정확한 제품 모델, 전기적 정상 여부, 내부 손상 또는 완전 체결 여부를 확정하지 않습니다. 모델 식별이 필요한 경우 제품 라벨이나 각인이 보이는 추가 사진을 요청하는 방식으로 설계되어 있습니다.
-
-## 사용 흐름
+## 구조
 
 ```text
-안전 확인
-  → PC 내부 사진 촬영 또는 선택
-  → 이미지 품질 및 부품 분석
-  → 사진 위 부품 윤곽선 표시
-  → 부품별 판단 근거 확인
-  → 필요하면 라벨 확대 사진 추가 촬영
+upkit/
+├── web/        SvelteKit 3 앱 (화면 + 서버 API). 배포 대상
+└── training/   부품 분할 모델을 만드는 Python 파이프라인. 개발자 PC에서만 실행
 ```
 
-## 실행 방법
+## AI 구조
 
-### 요구 사항
+분석 1회당 서버 비용이 0에 가깝도록, 무거운 추론은 **사용자 기기에서** 실행합니다.
 
-- Node.js 18 이상
-- npm
+```text
+[사용자 브라우저]
+  ├─ 촬영 품질 검사 (밝기·흔들림·해상도)   AI 아님, 일반 코드
+  ├─ 부품 탐지 + 윤곽선                    분할 모델(ONNX)을 Web Worker에서 실행
+  │                                         WebGPU 우선, 안 되면 WASM. 사진은 기기 밖으로 나가지 않음
+  └─ 라벨 확대 사진 ─────────────┐
+                                  ▼
+[SvelteKit 서버 /api/label]  라벨 읽기 제공자 (교체 가능)
+                               - gemini: Gemini API (무료 등급으로 시작)
+                               - demo  : API 키 없이 흐름 확인
+```
 
-### 개발 서버
+| 단계 | 위치 | 코드 |
+| --- | --- | --- |
+| 품질 검사 | 브라우저 | `web/src/lib/vision/quality.ts` |
+| 모델 다운로드·캐시·실행 | 브라우저 Worker | `web/src/lib/vision/onnx/worker.ts` |
+| 출력 디코딩, 마스크 → 다각형 | 브라우저 Worker | `web/src/lib/vision/onnx/postprocess.ts`, `contour.ts` |
+| 중복 제거·개수 제한·낮은 점수 처리 | 브라우저 | `web/src/lib/vision/rules.ts` |
+| 라벨 읽기 | 서버 | `web/src/lib/server/label/` |
+
+학습된 모델(`web/static/models/upkit-seg/model.json`)이 없으면 자동으로 **데모 분석기**가 사용되고, 화면에 데모라고 표시됩니다.
+모델을 만드는 방법과 웹앱과의 계약은 [training/README.md](training/README.md)를 참고하세요.
+
+## 실행
+
+Node.js 22.17 이상이 필요합니다.
 
 ```bash
+cd web
 npm install
+cp .env.example .env   # 라벨 읽기를 실제로 쓰려면 GEMINI_API_KEY 입력
 npm run dev
 ```
 
-Vite가 출력하는 로컬 주소를 브라우저에서 열면 됩니다. 모바일 카메라 동작을 확인하려면 HTTPS 환경 또는 지원되는 로컬 개발 환경이 필요할 수 있습니다.
+| 명령 | 설명 |
+| --- | --- |
+| `npm run dev` | 개발 서버 |
+| `npm run check` | 타입 검사 |
+| `npm run build` / `npm run preview` | 프로덕션 빌드 / 미리보기 |
 
-### 프로덕션 빌드
+휴대폰 카메라로 확인하려면 HTTPS가 필요할 수 있습니다.
 
-```bash
-npm run build
-npm run preview
-```
+### 환경 변수 (`web/.env`)
 
-## 기술 구성
+| 이름 | 기본값 | 설명 |
+| --- | --- | --- |
+| `LABEL_PROVIDER` | `auto` | `auto`(키가 있으면 gemini) · `gemini` · `demo` |
+| `GEMINI_API_KEY` | — | Google AI Studio 키. 서버에서만 사용 |
+| `GEMINI_MODEL` | `gemini-flash-latest` | 라벨 읽기 모델 |
 
-- React 19
-- TypeScript
-- Vite
-- Lucide React
-- CSS 기반 반응형 레이아웃 및 애니메이션
-- SVG 기반 부품 윤곽선 오버레이
+Gemini 무료 등급은 한도가 계정마다 다르고, 전송한 데이터가 Google 모델 개선에 쓰일 수 있습니다.
+그래서 앱은 라벨 사진을 보내기 전에 외부 전송을 고지하며, 케이스 전체 사진은 보내지 않습니다.
 
-별도의 상태 관리 라이브러리나 UI 프레임워크 없이 가볍게 구성되어 있습니다.
+## 기술 메모
 
-## 프로젝트 구조
+- **SvelteKit 3**: 설정은 `svelte.config.js`가 아니라 `vite.config.ts`의 `sveltekit({...})`에 넣습니다. `$lib` 대신 `#lib/...ts`(package.json `imports`)를 쓰고, 환경 변수는 `src/env.ts`에서 정의해 `$app/env/private`로 가져옵니다.
+- **onnxruntime-web**: WebGPU 런타임 wasm(약 28MB)은 정적 호스팅의 파일 크기 제한을 넘을 수 있어서 같은 버전을 jsDelivr에서 받습니다(`onnxruntime-web-use-extern-wasm` 조건). 사용자 사진은 이 경로로 전송되지 않습니다.
+- **배포**: 지금은 `adapter-auto`입니다. 배포처(Cloudflare, Vercel 등)를 정하면 해당 어댑터로 바꿉니다.
 
-```text
-src/
-├── App.tsx              # 화면 흐름과 주요 인터랙션
-├── main.tsx             # React 진입점
-├── styles.css           # 레이아웃, 반응형 스타일, 애니메이션
-├── types.ts             # 분석 결과와 부품 타입
-└── services/
-    └── vision.ts        # 현재 데모 분석 서비스
-```
+## 판단 원칙
 
-## 분석 데이터 형식
-
-프론트엔드는 `VisionAnalysisService` 인터페이스만 사용합니다. 실제 분석 API도 같은 계약을 구현하면 현재 데모 서비스를 교체할 수 있습니다.
-
-```ts
-interface VisionAnalysisService {
-  analyze(image: File): Promise<AnalysisResult>;
-}
-```
-
-탐지 위치는 원본 이미지 너비와 높이를 기준으로 `0~1` 범위에 정규화합니다. `outline`은 부품 외곽선을 이루는 점 목록이며, 값이 없을 때는 `boundingBox`를 대체 표시로 사용할 수 있습니다.
-
-```ts
-interface Detection {
-  id: string;
-  category: ComponentCategory;
-  confidence: number;
-  boundingBox: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
-  outline?: Array<{ x: number; y: number }>;
-  visibleText: string[];
-  observations: string[];
-  manufacturerCandidates: string[];
-  productCandidates: Array<{
-    productId: string;
-    score: number;
-    evidence: string[];
-  }>;
-  needsConfirmation: boolean;
-  requestedPhoto?: string;
-}
-```
-
-## 실제 Vision API 연결
-
-현재 [`src/services/vision.ts`](src/services/vision.ts)의 `mockVisionService`는 업로드된 사진을 분석하지 않고 동일한 샘플 결과를 반환합니다. 실제 정확도를 확보하려면 백엔드 분석 파이프라인이 필요합니다.
-
-권장 흐름은 다음과 같습니다.
-
-1. 프론트엔드에서 이미지를 백엔드로 업로드합니다.
-2. 백엔드에서 이미지 품질을 검사합니다.
-3. 객체 탐지 또는 인스턴스 세그멘테이션 모델로 부품을 분류합니다.
-4. 모델의 마스크를 정규화된 `outline` 좌표로 변환합니다.
-5. 필요한 영역에 OCR을 적용해 라벨과 모델 번호 후보를 찾습니다.
-6. 반환값을 `AnalysisResult` 형식으로 검증한 후 프론트엔드에 전달합니다.
-
-API 키와 모델 접근 정보는 브라우저 코드에 포함하지 않고 백엔드 환경 변수로 관리해야 합니다.
+- 외형만으로 정확한 제품 모델을 단정하지 않습니다. 모델명은 라벨에 **보이는 문자**로만 확인하고, 마지막에 사용자가 확정합니다.
+- 점수가 낮은 탐지는 카테고리를 단정하지 않고 "확인 필요"로 보여줍니다. 모델 점수는 정답일 확률이 아님을 화면에 밝힙니다.
+- 사진만으로 전기적 안전, 고장, 완전 체결 여부를 판단하지 않습니다.
 
 ## 안전 원칙
 
-- 촬영 전 컴퓨터를 완전히 종료하고 전원 케이블을 분리합니다.
-- 파워서플라이 본체 내부를 열도록 안내하지 않습니다.
-- 사진만으로 전기적 안전이나 부품의 정상 작동을 보장하지 않습니다.
-- 신뢰도가 낮거나 다른 부품에 가려진 결과는 사용자 확인을 요청합니다.
-- 정확한 제품 모델은 라벨, OCR 결과 및 사용자의 최종 확인을 거칩니다.
+- 촬영 전 PC를 완전히 종료하고 전원 케이블을 분리하도록 확인합니다.
+- 파워서플라이 내부를 열도록 안내하지 않습니다.
 
-## 로컬 AI 분석기 개발 현황
+## 현재 상태
 
-원격 저장소의 현재 구현은 위에서 설명한 프론트엔드 데모입니다. 별도 로컬 작업 폴더에서는 Python 기반 분석기를 개발 중이며, 아래 파일과 모델은 현재 이 저장소에 포함되어 있지 않습니다.
-
-- `backend/app/analyzers/mock.py`: API 연결 확인용 고정 샘플 결과를 반환합니다.
-- `backend/app/analyzers/grounded_sam.py`: CLIP으로 촬영 방향을 분류하고, Grounding DINO로 부품 후보를 탐지한 뒤 SAM으로 외곽선을 생성합니다.
-- `backend/requirements-frozen.txt`: 로컬 Python 환경의 의존성 목록입니다.
-
-이 분석기는 이미 학습된 모델을 불러와 추론하는 방식입니다. 자체 데이터로 모델을 학습하는 코드는 해당 분석기 파일에 포함되어 있지 않습니다. 모델 로딩은 `local_files_only=True`를 사용하므로 필요한 모델을 로컬 캐시에 미리 준비해야 합니다.
-
-로컬 분석기를 통합하기 전에는 다음 작업이 필요합니다.
-
-1. 분석기가 참조하는 기반 클래스, 설정, 결과 스키마와 API 진입점을 갖춥니다.
-2. 탐지 좌표의 이미지 경계와 좌표 순서를 검증합니다.
-3. 부품별 개수 제한으로 정상 탐지가 누락되는 동작을 개선합니다.
-4. PC 외부·무관한 사진을 처리하고, 복잡한 마스크의 외곽선 보존을 개선합니다.
-5. 실제 PC 사진으로 정확도, 처리 시간, 메모리 사용량을 검증합니다.
-
-### 상품화 방향
-
-외부 AI API 사용, 공개 모델 자체 운영, 자체 데이터 추가 학습을 비교해 분석 방식을 결정합니다. 자체 운영에도 서버와 GPU 비용이 발생하며, 추가 학습에는 데이터 수집·라벨링·검증 비용이 필요합니다. 우선 부품의 종류와 위치 탐지를 검증하고, 정확한 제품 모델 식별은 OCR과 제품 데이터베이스 연동으로 확장할 계획입니다.
-
-## 로드맵
-
-- 실제 부품 탐지 및 세그멘테이션 API
-- 촬영 품질 검사와 재촬영 가이드
-- 라벨 확대 촬영 및 OCR
-- 공식 제품 데이터베이스와 모델 후보 검색
-- 사용자별 PC 구성 저장
-- 부품 호환성 및 업그레이드 가이드
-- 모바일 앱 또는 설치형 웹 앱 전환
+- [x] SvelteKit 3 앱: 안전 확인 → 촬영 → 품질 검사 → 분석 → 윤곽선 결과 → 라벨 확인
+- [x] 기기 내 추론 런타임 (테스트용 가짜 모델로 WebGPU 실행까지 확인)
+- [x] 라벨 읽기 API (데모 제공자로 확인, Gemini는 실제 키로 아직 미검증)
+- [ ] 학습된 부품 분할 모델 (데이터 수집·검수부터 필요)
+- [ ] 제품 DB와 모델 후보 검색
+- [ ] 사용자 PC 구성 저장, 업그레이드 가이드
 
 ## 라이선스
 

@@ -1,0 +1,8 @@
+node_modules
+.svelte-kit
+build
+.env
+.env.*
+!.env.example
+# 학습된 모델 가중치는 용량이 커서 저장소에 넣지 않는다 (model.json만 커밋)
+static/models/**/*.onnx
